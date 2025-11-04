@@ -3,6 +3,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User } from 'lucide-react';
 
+// Função para gerar UUID v4
+const generateUUID = (): string => {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    // Fallback para navegadores mais antigos
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
 interface Message {
     id: string;
     role: 'user' | 'assistant';
@@ -18,11 +31,34 @@ export default function Twin() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Usar um pequeno delay para garantir que o DOM foi atualizado
+        setTimeout(() => {
+            if (messagesEndRef.current) {
+                messagesEndRef.current.parentElement?.scrollTo({
+                    top: messagesEndRef.current.parentElement.scrollHeight,
+                    behavior: 'smooth',
+                });
+            }
+        }, 0);
     };
 
     useEffect(() => {
-        scrollToBottom();
+        // Inicializar sessionId do localStorage ou gerar novo UUID
+        const storedSessionId = localStorage.getItem('sessionId');
+        if (storedSessionId) {
+            setSessionId(storedSessionId);
+        } else {
+            const newSessionId = generateUUID();
+            localStorage.setItem('sessionId', newSessionId);
+            setSessionId(newSessionId);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Só faz scroll se houver mensagens
+        if (messages.length > 0) {
+            scrollToBottom();
+        }
     }, [messages]);
 
     const sendMessage = async () => {
@@ -41,24 +77,21 @@ export default function Twin() {
 
         try {
             //const response = await fetch('http://localhost:8000/chat', {
-            const response = await fetch('https://4ahto04z6i.execute-api.us-east-1.amazonaws.com/chat', {
+            //const response = await fetch('https://4ahto04z6i.execute-api.us-east-1.amazonaws.com/chat', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     message: input,
-                    session_id: sessionId || undefined,
+                    session_id: sessionId,
                 }),
             });
 
             if (!response.ok) throw new Error('Failed to send message');
 
             const data = await response.json();
-
-            if (!sessionId) {
-                setSessionId(data.session_id);
-            }
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
@@ -96,9 +129,9 @@ export default function Twin() {
             <div className="bg-gradient-to-r from-slate-700 to-slate-800 text-white p-4 rounded-t-lg">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
                     <Bot className="w-6 h-6" />
-                    AI Digital Twin
+                    Agente de IA MadsonAI
                 </h2>
-                <p className="text-sm text-slate-300 mt-1">Your AI course companion</p>
+                <p className="text-sm text-slate-300 mt-1">Vamos conversar sobre meu currículo?</p>
             </div>
 
             {/* Messages */}
@@ -106,8 +139,7 @@ export default function Twin() {
                 {messages.length === 0 && (
                     <div className="text-center text-gray-500 mt-8">
                         <Bot className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                        <p>Hello! I&apos;m your Digital Twin.</p>
-                        <p className="text-sm mt-2">Ask me anything about AI deployment!</p>
+                        <p>Olá, sou MadsonAI!</p>
                     </div>
                 )}
 
@@ -181,7 +213,7 @@ export default function Twin() {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyPress}
-                        placeholder="Type your message..."
+                        placeholder="Envie uma mensagem..."
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-600 focus:border-transparent text-gray-800"
                         disabled={isLoading}
                     />
